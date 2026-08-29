@@ -4,7 +4,6 @@ import { useMemo, useState } from 'react';
 import ErrorState from '@/shared/components/ErrorState';
 import { Toast, type ToastState } from '@/shared/components/Toast';
 import { useGraduateMutations } from '@/features/graduates/Usegraduatemutations';
-import { calculateGraduateSummary } from '@/features/graduates/calculateGraduateSummary';
 import { filterGraduates, sortGraduates } from '@/features/graduates/filterGraduates';
 import {
   DEFAULT_GRADUATE_FILTERS,
@@ -16,7 +15,6 @@ import {
   type VerificationStatusFilter,
 } from '@/features/graduates/types';
 import GraduateForm from '@/features/graduates/GraduateForm';
-import { GraduateSummary } from '@/features/graduates/GraduateSummary';
 import { GraduateFilters } from '@/features/graduates/GraduateFilters';
 import { GraduateTable } from '@/features/graduates/GraduateTable';
 import { GraduateDeleteModal } from '@/features/graduates/GraduateDeleteModal';
@@ -35,10 +33,6 @@ export default function GraduatesBuilder({
   const [deleteTarget, setDeleteTarget] = useState<GraduateEntry | null>(null);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
-
-  // Recap always reflects the complete dataset, independent of the
-  // table's current search/filter — same convention as Cashbook.
-  const summary = useMemo(() => calculateGraduateSummary(initialEntries), [initialEntries]);
 
   const displayed = useMemo(() => {
     const filtered = filterGraduates(initialEntries, filters);
@@ -80,8 +74,13 @@ export default function GraduatesBuilder({
         <ErrorState message="Gagal memuat data wisudawan. Coba muat ulang halaman." />
       ) : (
         <>
-          <div className="mb-6">
-            <GraduateSummary summary={summary} />
+          <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4">
+            <h2 className="mb-3 text-sm font-medium text-gray-500">Tambah Wisudawan</h2>
+            <GraduateForm
+              onSuccess={() =>
+                setToast({ kind: 'success', message: 'Data wisudawan berhasil disimpan.' })
+              }
+            />
           </div>
 
           <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4">
@@ -102,21 +101,14 @@ export default function GraduatesBuilder({
             />
           </div>
 
-          <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4">
-            <h2 className="mb-3 text-sm font-medium text-gray-500">Tambah Wisudawan</h2>
-            <GraduateForm
-              onSuccess={() =>
-                setToast({ kind: 'success', message: 'Data wisudawan berhasil disimpan.' })
-              }
+          <h2 className="mb-3 text-sm font-medium text-gray-500">Database Wisudawan</h2>
+          <div className="overflow-x-auto">
+            <GraduateTable
+              entries={displayed}
+              deletingId={deletingId}
+              onRequestDelete={setDeleteTarget}
             />
           </div>
-
-          <h2 className="mb-3 text-sm font-medium text-gray-500">Database Wisudawan</h2>
-          <GraduateTable
-            entries={displayed}
-            deletingId={deletingId}
-            onRequestDelete={setDeleteTarget}
-          />
         </>
       )}
 

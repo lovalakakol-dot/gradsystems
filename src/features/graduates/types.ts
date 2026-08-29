@@ -91,11 +91,12 @@ export interface GraduateTable {
   Relationships: [];
 }
 
-export type SortOption = 'name_asc' | 'name_desc';
+export type SortOption = 'name_asc' | 'name_desc' | 'participant_number_asc';
 
 export const SORT_LABELS: Record<SortOption, string> = {
   name_asc: 'Nama A-Z',
   name_desc: 'Nama Z-A',
+  participant_number_asc: 'No. Peserta (Awal-Akhir)',
 };
 
 export interface GraduateFiltersState {
@@ -140,24 +141,25 @@ export interface GraduateSummary {
 }
 
 /**
- * Export/preview columns. "no" is the display row number — derived
- * at export time from array position, never stored in the database.
+ * Export/preview columns.
  */
 export const EXPORT_COLUMNS = [
-  'no',
+  'participant_number',
   'full_name_ar',
   'country',
   'shirt_size',
+  'whatsapp_number',
   'verification_status',
 ] as const;
 
 export type ExportColumn = (typeof EXPORT_COLUMNS)[number];
 
 export const EXPORT_COLUMN_LABELS: Record<ExportColumn, string> = {
-  no: 'Nomor',
+  participant_number: 'No. Peserta',
   full_name_ar: 'Nama Lengkap',
   country: 'Asal Negara',
   shirt_size: 'Ukuran Baju',
+  whatsapp_number: 'No. WhatsApp',
   verification_status: 'Status Verifikasi',
 };
 

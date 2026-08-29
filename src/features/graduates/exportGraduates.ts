@@ -14,21 +14,23 @@ import {
  * actual XLSX file (Section 17 — preview and workbook must never
  * diverge). Callers must pass data that has already had search,
  * filter, and sort applied — this function does not re-derive any
- * of that, it only shapes rows for display/export. Row numbering
- * ("Nomor") is the array position, matching whatever order the
- * table is currently displayed in.
+ * of that, it only shapes rows for display/export. "No. Peserta"
+ * is the entry's own stored participant_number, not the array
+ * position — it stays stable regardless of current sort/filter/
+ * display order. "No. WhatsApp" is emitted exactly as stored in
+ * the database, with no reformatting.
  */
 export function buildGraduateExportRows(
   entries: GraduateEntry[],
   columns: ExportColumn[]
 ): GraduateExportRow[] {
-  return entries.map((entry, index) => {
+  return entries.map((entry) => {
     const row: GraduateExportRow = {};
     for (const column of columns) {
       const label = EXPORT_COLUMN_LABELS[column];
       switch (column) {
-        case 'no':
-          row[label] = index + 1;
+        case 'participant_number':
+          row[label] = entry.participant_number ?? '—';
           break;
         case 'full_name_ar':
           row[label] = entry.full_name_ar ?? '—';
@@ -38,6 +40,9 @@ export function buildGraduateExportRows(
           break;
         case 'shirt_size':
           row[label] = entry.shirt_size ? SHIRT_SIZE_LABEL[entry.shirt_size] : '—';
+          break;
+        case 'whatsapp_number':
+          row[label] = entry.whatsapp_number ?? '—';
           break;
         case 'verification_status':
           row[label] = VERIFICATION_STATUS_LABEL[entry.verification_status];

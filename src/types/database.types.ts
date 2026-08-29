@@ -27,6 +27,19 @@ export interface ProfileRow {
 }
 
 export interface Database {
+  // Required by @supabase/supabase-js (postgrest-js) so that
+  // createClient<Database>(...) can resolve .from()'s TableName/Table
+  // generics correctly. Without this, TypeScript silently collapses
+  // Insert/Update types to `never` for every table — surfacing as
+  // "Argument of type 'X' is not assignable to parameter of type
+  // 'never[]'" wherever .insert()/.update() is called, with no hint
+  // that the real cause is this missing field. '12' matches current
+  // PostgREST/postgrest-js — update it if the project's Supabase/
+  // postgrest-js version reports a different PostgrestVersion.
+  __InternalSupabase: {
+    PostgrestVersion: '12';
+  };
+
   public: {
     Tables: {
       profiles: {
@@ -344,4 +357,4 @@ export interface Database {
 
     CompositeTypes: {};
   };
-}
+} 

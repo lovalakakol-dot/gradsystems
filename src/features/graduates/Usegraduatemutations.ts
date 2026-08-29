@@ -4,7 +4,20 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import type { CreateGraduateInput, GraduateFormValues, GraduateTable } from './types';
+import type { Database } from '@/types/database.types';
 
+type GraduatesInsert = Database['public']['Tables']['graduates']['Insert'];
+//   ^^^^^^^^^^^^^^ arahkan kursor ke sini di editor — lihat tooltip-nya
+
+const _sanityCheck: GraduatesInsert = {
+  full_name: 'test',
+  full_name_ar: 'test',
+  country_code: 'ID',
+  shirt_size: 'large',
+  participant_number: '1',
+  whatsapp_number: '0',
+  verification_status: 'done',
+};
 /**
  * full_name is required by the existing schema but is not a form
  * field in this feature — derive it from full_name_ar so the insert
@@ -39,6 +52,13 @@ export function useGraduateMutations() {
       // active pendataan user. created_by/updated_by are forced
       // server-side by the set_audit_columns trigger regardless of
       // what is sent here; no service-role key is ever used here.
+      //
+      // Explicit <'graduates', GraduateTable> override, restored:
+      // plain .from('graduates') left the second (dependent) generic
+      // unresolved and collapsed it to `never` instead of falling
+      // back to Database['public']['Tables']['graduates']. Passing
+      // GraduateTable explicitly sidesteps that inference gap — same
+      // convention as RAB's RabTable and Cashbook's CashbookTable.
       const { error } = await supabase
         .from<'graduates', GraduateTable>('graduates')
         .insert(toCreateInput(values));
