@@ -1,88 +1,51 @@
-import { useMemo } from 'react';
-import { buildGraduateExportRows } from './exportGraduates';
-import type { ExportColumn, GraduateEntry } from './types';
+import { EXPORT_COLUMN_LABELS, type ExportColumn, type ExportRow } from './types';
 
-/**
- * Renders exactly what buildGraduateExportRows produces — the same
- * function the XLSX writer consumes — so what's shown here is
- * guaranteed identical to the downloaded file (Section 17).
- */
-export function GraduateExportPreview({
-  entries,
+export default function GraduateExportPreview({
   columns,
-  isExporting,
-  onBack,
-  onExport,
+  rows,
 }: {
-  entries: GraduateEntry[];
   columns: ExportColumn[];
-  isExporting: boolean;
-  onBack: () => void;
-  onExport: () => void;
+  rows: ExportRow[];
 }) {
-  const rows = useMemo(() => buildGraduateExportRows(entries, columns), [entries, columns]);
-  const headers = rows.length > 0 ? Object.keys(rows[0]) : [];
-
   return (
-    <div className="flex h-full flex-col">
-      <div className="border-b border-gray-200 p-4">
-        <h3 className="text-sm font-semibold text-gray-900">Preview Export XLSX</h3>
-        <p className="text-xs text-gray-500">Database_Wisudawan.xlsx</p>
-        <p className="mt-1 text-xs text-gray-500">
-          {rows.length} data · {columns.length} kolom
+    <div className="space-y-3">
+      <div className="rounded-lg border border-white/40 bg-white/70 p-3 text-sm text-gray-700">
+        <p>
+          <span className="font-medium text-gray-900">Database_Wisudawan.xlsx</span>
+        </p>
+        <p>
+          {rows.length} data &middot; {columns.length} kolom
         </p>
       </div>
 
-      <div className="flex-1 overflow-auto p-4">
-        <div className="overflow-x-auto rounded-md border border-gray-200">
-          <table className="min-w-full divide-y divide-gray-200 text-sm">
-            <thead className="bg-gray-50">
-              <tr>
-                {headers.map((h) => (
-                  <th
-                    key={h}
-                    className="whitespace-nowrap px-3 py-2 text-left text-xs font-medium text-gray-500"
-                  >
-                    {h}
-                  </th>
+      <div className="max-h-72 overflow-auto rounded-lg border border-white/40">
+        <table className="w-full text-left text-xs">
+          <thead className="sticky top-0 border-b border-white/40 bg-white/90 uppercase text-gray-500">
+            <tr>
+              {columns.map((col) => (
+                <th key={col} className="whitespace-nowrap px-3 py-2 font-medium">
+                  {EXPORT_COLUMN_LABELS[col]}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100 bg-white/60">
+            {rows.map((row, index) => (
+              <tr key={index}>
+                {columns.map((col) => (
+                  <td key={col} className="whitespace-nowrap px-3 py-2 text-gray-900">
+                    {col === 'whatsapp' && typeof row[col] === 'string' && row[col] ? (
+                      <span className="text-[#7A1E33]">{row[col]}</span>
+                    ) : (
+                      String(row[col] ?? '')
+                    )}
+                  </td>
                 ))}
               </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {rows.map((row, i) => (
-                <tr key={i}>
-                  {headers.map((h) => (
-                    <td key={h} dir="rtl" className="whitespace-nowrap px-3 py-2 text-gray-900">
-                      {row[h]}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div className="flex justify-end gap-2 border-t border-gray-200 p-4">
-        <button
-          type="button"
-          onClick={onBack}
-          disabled={isExporting}
-          className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
-        >
-          Kembali
-        </button>
-        <button
-          type="button"
-          onClick={onExport}
-          disabled={isExporting || rows.length === 0}
-          className="rounded-md bg-[#7A1E33] px-4 py-2 text-sm font-medium text-white hover:bg-[#651729] disabled:opacity-60"
-        >
-          {isExporting ? 'Mengekspor...' : 'Export XLSX'}
-        </button>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
 }
-
-export default GraduateExportPreview;

@@ -1,26 +1,26 @@
-import Card from '@/shared/components/Card';
-import type { RabItem } from './types';
-
-function formatNumber(value: number): string {
-  return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(value);
+interface RABSummaryProps {
+  totalEGP: number;
+  totalIDR: number;
 }
 
-export default function RABSummary({ items }: { items: RabItem[] }) {
-  const totalEgp = items
-    .filter((i) => i.currency === 'EGP')
-    .reduce((sum, i) => sum + i.estimated_cost, 0);
-  const totalIdr = items
-    .filter((i) => i.currency === 'IDR')
-    .reduce((sum, i) => sum + i.estimated_cost, 0);
+// Comma-separated thousands for both currencies, matching Section 12's
+// literal example ("EGP 5,000" / "IDR 2,500,000") — not locale-specific
+// dot separators.
+function formatAmount(currency: 'EGP' | 'IDR', value: number): string {
+  return `${currency} ${new Intl.NumberFormat('en-US').format(Math.round(value))}`;
+}
 
+export function RABSummary({ totalEGP, totalIDR }: RABSummaryProps) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <Card title="Total Anggaran EGP">
-        <p className="text-2xl font-semibold text-gray-900">{formatNumber(totalEgp)}</p>
-      </Card>
-      <Card title="Total Anggaran IDR">
-        <p className="text-2xl font-semibold text-gray-900">{formatNumber(totalIdr)}</p>
-      </Card>
+      <div className="rounded-xl border border-white/40 bg-white/60 p-5 shadow-lg shadow-black/5 backdrop-blur-xl">
+        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Total EGP</p>
+        <p className="mt-1 text-2xl font-semibold text-slate-900">{formatAmount('EGP', totalEGP)}</p>
+      </div>
+      <div className="rounded-xl border border-white/40 bg-white/60 p-5 shadow-lg shadow-black/5 backdrop-blur-xl">
+        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Total IDR</p>
+        <p className="mt-1 text-2xl font-semibold text-slate-900">{formatAmount('IDR', totalIDR)}</p>
+      </div>
     </div>
   );
 }

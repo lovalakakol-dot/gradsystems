@@ -1,159 +1,212 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import Input from '@/shared/components/Input';
-import Select from '@/shared/components/Select';
-import Button from '@/shared/components/Button';
-import InlineAlert from '@/shared/components/InlineAlert';
-import { useRabItemMutations } from './Userabitemmutations';
-import { DIVISIONS, type Division, type Currency } from './types';
+import { Loader2, X } from 'lucide-react';
+import { CURRENCIES, DIVISIONS, EMPTY_RAB_FORM, validateRABForm } from './types';
+import type { CreateRABInput, RABFormData, RABFormErrors } from './types';
 
-const CURRENCIES: Currency[] = ['EGP', 'IDR'];
+interface RABFormProps {
+  open: boolean;
+  onClose: () => void;
+  onSubmit: (input: CreateRABInput) => Promise<{ success: boolean; error: string | null }>;
+}
 
-export default function RABForm({ onSuccess }: { onSuccess: () => void }) {
-  const { createRabItem, isCreating } = useRabItemMutations();
+export function RABForm({ open, onClose, onSubmit }: RABFormProps) {
+  const [form, setForm] = useState<RABFormData>(EMPTY_RAB_FORM);
+  const [errors, setErrors] = useState<RABFormErrors>({});
+  const [submitting, setSubmitting] = useState(false);
 
-  const [itemName, setItemName] = useState('');
-  const [quantity, setQuantity] = useState('');
-  const [unit, setUnit] = useState('');
-  const [division, setDivision] = useState<Division>(DIVISIONS[0]);
-  const [currency, setCurrency] = useState<Currency>('IDR');
-  const [estimatedCost, setEstimatedCost] = useState('');
-  const [description, setDescription] = useState('');
-  const [formError, setFormError] = useState<string | null>(null);
+  if (!open) return null;
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setFormError(null);
+  const resetAndClose = () => {
+    if (submitting) return;
+    setForm(EMPTY_RAB_FORM);
+    setErrors({});
+    onClose();
+  };
 
-    const quantityNum = Number(quantity);
-    const costNum = Number(estimatedCost);
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (submitting) return;
 
-    if (!itemName.trim()) {
-      setFormError('Nama item anggaran wajib diisi.');
-      return;
-    }
-    if (!Number.isFinite(quantityNum) || quantityNum <= 0) {
-      setFormError('Quantity harus lebih besar dari 0.');
-      return;
-    }
-    if (!unit.trim()) {
-      setFormError('Unit wajib diisi.');
-      return;
-    }
-    if (!Number.isFinite(costNum) || costNum <= 0) {
-      setFormError('Estimasi biaya harus lebih besar dari 0.');
-      return;
-    }
+    const validationErrors = validateRABForm(form);
+    setErrors(validationErrors);
+    if (Object.keys(validationErrors).length > 0) return;
 
-    // estimated_cost is the item's TOTAL estimate, entered
-    // directly by the user — never computed as quantity × a
-    // per-unit price, since unit_price does not exist in the
-    // database by design (Step 7).
-    const { error } = await createRabItem({
-      item_name: itemName.trim(),
-      quantity: quantityNum,
-      unit: unit.trim(),
-      division,
-      currency,
-      estimated_cost: costNum,
-      description: description.trim() || null,
+    setSubmitting(true);
+    const { success, error } = await onSubmit({
+      item_name: form.item_name.trim(),
+      quantity: Number(form.quantity),
+      unit: form.unit.trim(),
+      division: form.division,
+      currency: form.currency,
+      estimated_cost: Number(form.estimated_cost),
+      description: form.description.trim() || null,
     });
+    setSubmitting(false);
 
-    if (error) {
-      setFormError(error);
-      return;
+    if (success) {
+      setForm(EMPTY_RAB_FORM);
+      setErrors({});
+    } else {
+      setErrors({ form: error ?? 'Gagal menambahkan item RAB. Coba lagi.' });
     }
-
-    setItemName('');
-    setQuantity('');
-    setUnit('');
-    setEstimatedCost('');
-    setDescription('');
-    onSuccess();
-  }
+  };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
-      <Input
-        label="Nama Item Anggaran"
-        value={itemName}
-        onChange={(e) => setItemName(e.target.value)}
-        disabled={isCreating}
-        required
-      />
-      <div className="grid grid-cols-2 gap-3">
-        <Input
-          label="Quantity"
-          type="number"
-          step="0.01"
-          min="0"
-          value={quantity}
-          onChange={(e) => setQuantity(e.target.value)}
-          disabled={isCreating}
-          required
-        />
-        <Input
-          label="Unit"
-          placeholder="Pcs, Kg, Liter, ..."
-          value={unit}
-          onChange={(e) => setUnit(e.target.value)}
-          disabled={isCreating}
-          required
-        />
-      </div>
-      <Select
-        label="Divisi"
-        value={division}
-        onChange={(e) => setDivision(e.target.value as Division)}
-        disabled={isCreating}
-      >
-        {DIVISIONS.map((d) => (
-          <option key={d} value={d}>
-            {d}
-          </option>
-        ))}
-      </Select>
-      <div className="grid grid-cols-2 gap-3">
-        <Select
-          label="Mata Uang"
-          value={currency}
-          onChange={(e) => setCurrency(e.target.value as Currency)}
-          disabled={isCreating}
-        >
-          {CURRENCIES.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </Select>
-        <Input
-          label="Estimasi Biaya"
-          type="number"
-          step="0.01"
-          min="0"
-          value={estimatedCost}
-          onChange={(e) => setEstimatedCost(e.target.value)}
-          disabled={isCreating}
-          required
-        />
-      </div>
-      <label className="block">
-        <span className="mb-1 block text-sm font-medium text-gray-700">Catatan/Keterangan</span>
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          disabled={isCreating}
-          rows={3}
-          className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-[#7A1E33] focus:outline-none focus:ring-1 focus:ring-[#7A1E33] disabled:opacity-60"
-        />
-      </label>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm">
+      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl border border-white/50 bg-white/90 p-6 shadow-2xl backdrop-blur-xl">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-base font-semibold text-slate-900">Tambah Item Anggaran</h2>
+          <button
+            type="button"
+            onClick={resetAndClose}
+            disabled={submitting}
+            className="rounded-lg p-1 text-slate-400 transition-colors duration-200 hover:bg-white/60 hover:text-slate-700 disabled:cursor-not-allowed"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
 
-      {formError && <InlineAlert message={formError} />}
+        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+          {errors.form && (
+            <div className="rounded-lg border border-rose-200/60 bg-rose-50/80 px-3 py-2 text-sm text-rose-700">
+              {errors.form}
+            </div>
+          )}
 
-      <Button type="submit" isLoading={isCreating} className="w-full">
-        {isCreating ? 'Menyimpan...' : 'Tambah Item'}
-      </Button>
-    </form>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">
+              Nama Item Anggaran <span className="text-rose-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={form.item_name}
+              onChange={(event) => setForm({ ...form, item_name: event.target.value })}
+              placeholder="Sewa Kursi"
+              className="w-full rounded-lg border border-white/60 bg-white/50 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 backdrop-blur transition-colors duration-200 focus:border-[#7A1E33]/50 focus:outline-none focus:ring-2 focus:ring-[#7A1E33]/40"
+            />
+            {errors.item_name && <p className="mt-1 text-xs text-rose-600">{errors.item_name}</p>}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">
+                Quantity <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={form.quantity}
+                onChange={(event) => setForm({ ...form, quantity: event.target.value })}
+                className="w-full rounded-lg border border-white/60 bg-white/50 px-3 py-2 text-sm text-slate-900 backdrop-blur transition-colors duration-200 focus:border-[#7A1E33]/50 focus:outline-none focus:ring-2 focus:ring-[#7A1E33]/40"
+              />
+              {errors.quantity && <p className="mt-1 text-xs text-rose-600">{errors.quantity}</p>}
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">
+                Unit <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={form.unit}
+                onChange={(event) => setForm({ ...form, unit: event.target.value })}
+                placeholder="pcs"
+                className="w-full rounded-lg border border-white/60 bg-white/50 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 backdrop-blur transition-colors duration-200 focus:border-[#7A1E33]/50 focus:outline-none focus:ring-2 focus:ring-[#7A1E33]/40"
+              />
+              {errors.unit && <p className="mt-1 text-xs text-rose-600">{errors.unit}</p>}
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">
+              Divisi <span className="text-rose-500">*</span>
+            </label>
+            <select
+              value={form.division}
+              onChange={(event) =>
+                setForm({ ...form, division: event.target.value as RABFormData['division'] })
+              }
+              className="w-full rounded-lg border border-white/60 bg-white/50 px-3 py-2 text-sm text-slate-900 backdrop-blur transition-colors duration-200 focus:border-[#7A1E33]/50 focus:outline-none focus:ring-2 focus:ring-[#7A1E33]/40"
+            >
+              {DIVISIONS.map((division) => (
+                <option key={division} value={division}>
+                  {division}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">
+                Mata Uang <span className="text-rose-500">*</span>
+              </label>
+              <select
+                value={form.currency}
+                onChange={(event) =>
+                  setForm({ ...form, currency: event.target.value as RABFormData['currency'] })
+                }
+                className="w-full rounded-lg border border-white/60 bg-white/50 px-3 py-2 text-sm text-slate-900 backdrop-blur transition-colors duration-200 focus:border-[#7A1E33]/50 focus:outline-none focus:ring-2 focus:ring-[#7A1E33]/40"
+              >
+                {CURRENCIES.map((currency) => (
+                  <option key={currency} value={currency}>
+                    {currency}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">
+                Estimasi Biaya <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={form.estimated_cost}
+                onChange={(event) => setForm({ ...form, estimated_cost: event.target.value })}
+                placeholder="Total, bukan harga satuan"
+                className="w-full rounded-lg border border-white/60 bg-white/50 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 backdrop-blur transition-colors duration-200 focus:border-[#7A1E33]/50 focus:outline-none focus:ring-2 focus:ring-[#7A1E33]/40"
+              />
+              {errors.estimated_cost && (
+                <p className="mt-1 text-xs text-rose-600">{errors.estimated_cost}</p>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Catatan</label>
+            <textarea
+              value={form.description}
+              onChange={(event) => setForm({ ...form, description: event.target.value })}
+              rows={2}
+              placeholder="Opsional"
+              className="w-full rounded-lg border border-white/60 bg-white/50 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 backdrop-blur transition-colors duration-200 focus:border-[#7A1E33]/50 focus:outline-none focus:ring-2 focus:ring-[#7A1E33]/40"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={resetAndClose}
+              disabled={submitting}
+              className="rounded-lg border border-white/60 bg-white/50 px-4 py-2 text-sm font-medium text-slate-800 transition-colors duration-200 hover:bg-white/80 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Batal
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="inline-flex items-center gap-2 rounded-xl bg-[#7A1E33] px-4 py-2 text-sm font-medium text-white shadow-sm shadow-[#7A1E33]/20 transition-colors duration-200 hover:bg-[#671729] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+              {submitting ? 'Menyimpan...' : 'Simpan'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }

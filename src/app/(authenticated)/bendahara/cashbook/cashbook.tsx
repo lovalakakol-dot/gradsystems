@@ -1,184 +1,196 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import CashbookForm from '@/features/cashbook/CashbookForm';
-import CashbookSummary from '@/features/cashbook/CashbookSummary';
-import CashbookFilters from '@/features/cashbook/CashbookFilters';
-import { CashbookTable } from '@/features/cashbook/cashbookTable';
-import CashbookDeleteModal from '@/features/cashbook/CashbookDeleteModal';
-import CashbookExportModal from '@/features/cashbook/CashbookExportModal';
-import { Toast, type ToastState } from '@/shared/components/Toast';
-import ErrorState from '@/shared/components/ErrorState';
-import { useCashbookMutations } from '@/features/cashbook/Usecashbookmutations';
-import {
-  calculateRunningBalance,
-  type CashbookEntryWithBalance,
-} from '@/features/cashbook/calculateRunningBalance';
-import exportCashbookToXlsx from '@/features/cashbook/Exportcashbook';
-import {
-  ALL_CURRENCIES,
-  ALL_DIVISIONS,
-  ALL_TYPES,
-  EXPORT_COLUMN_LABELS,
-  type CashbookEntry,
-  type CurrencyFilter,
-  type DivisionFilter,
-  type ExportColumn,
-  type SortOption,
-  type TypeFilter,
-} from '@/features/cashbook/types';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Download, Plus } from 'lucide-react';
+import { CashbookForm } from '@/features/cashbook/CashbookForm';
+import { CashbookFilters } from '@/features/cashbook/CashbookFilters';
+import { CashbookTable } from '@/features/cashbook/CashbookTable';
+import { CashbookSummary } from '@/features/cashbook/CashbookSummary';
+import { CashbookExportDialog } from '@/features/cashbook/CashbookExportDialog';
+import { createCashbookEntry, deleteCashbookEntry, fetchCashbookEntries } from '@/features/cashbook/data';
+import { DEFAULT_CASHBOOK_FILTERS, computeCashbookDisplayRows, sortCashbookRows } from '@/features/cashbook/types';
+import type { CashbookEntry, CashbookFiltersState, CreateCashbookInput } from '@/features/cashbook/types';
 
-/**
- * Never mixes EGP and IDR into one ranking — a currency-scoped sort
- * ranks that currency by amount; the other currency's rows stay
- * visible below, just outside that ranking (same convention as RAB
- * Builder's sort).
- */
-function sortEntries(
-  entries: CashbookEntryWithBalance[],
-  sort: SortOption
-): CashbookEntryWithBalance[] {
-  const byCurrency = (currency: 'EGP' | 'IDR', descending: boolean) => {
-    const inCurrency = entries
-      .filter((e) => e.currency === currency)
-      .sort((a, b) => (descending ? b.amount - a.amount : a.amount - b.amount));
-    const rest = entries.filter((e) => e.currency !== currency);
-    return [...inCurrency, ...rest];
-  };
-
-  switch (sort) {
-    case 'oldest':
-      return [...entries].sort((a, b) => a.transaction_date.localeCompare(b.transaction_date));
-    case 'largest_egp':
-      return byCurrency('EGP', true);
-    case 'smallest_egp':
-      return byCurrency('EGP', false);
-    case 'largest_idr':
-      return byCurrency('IDR', true);
-    case 'smallest_idr':
-      return byCurrency('IDR', false);
-    case 'newest':
-    default:
-      return [...entries].sort((a, b) => b.transaction_date.localeCompare(a.transaction_date));
-  }
+interface ActionFeedback {
+  type: 'success' | 'error';
+  message: string;
 }
 
-export default function Cashbook({
-  initialEntries,
-  hasError,
-}: {
-  initialEntries: CashbookEntry[];
-  hasError: boolean;
-}) {
-  const { deleteEntry, deletingId } = useCashbookMutations();
+export function Cashbook() {
+  const [entries, setEntries] = useState<CashbookEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [filters, setFilters] = useState<CashbookFiltersState>(DEFAULT_CASHBOOK_FILTERS);
+  const [formOpen, setFormOpen] = useState(false);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [feedback, setFeedback] = useState<ActionFeedback | null>(null);
 
-  const [divisionFilter, setDivisionFilter] = useState<DivisionFilter>(ALL_DIVISIONS);
-  const [typeFilter, setTypeFilter] = useState<TypeFilter>(ALL_TYPES);
-  const [currencyFilter, setCurrencyFilter] = useState<CurrencyFilter>(ALL_CURRENCIES);
-  const [sort, setSort] = useState<SortOption>('newest');
-  const [deleteTarget, setDeleteTarget] = useState<CashbookEntryWithBalance | null>(null);
-  const [isExportOpen, setIsExportOpen] = useState(false);
-  const [toast, setToast] = useState<ToastState | null>(null);
-
-  // Running balance computed ONCE over the full, chronologically
-  // ordered history (initialEntries already arrives ordered that
-  // way from getCashbookEntries.ts). Filters/sorting below only
-  // ever change what's DISPLAYED — never recompute this.
-  const withBalance = useMemo(() => calculateRunningBalance(initialEntries), [initialEntries]);
-
-  const displayed = useMemo(() => {
-    const filtered = withBalance.filter((e) => {
-      if (divisionFilter !== ALL_DIVISIONS && e.division !== divisionFilter) return false;
-      if (typeFilter !== ALL_TYPES && e.type !== typeFilter) return false;
-      if (currencyFilter !== ALL_CURRENCIES && e.currency !== currencyFilter) return false;
-      return true;
-    });
-    return sortEntries(filtered, sort);
-  }, [withBalance, divisionFilter, typeFilter, currencyFilter, sort]);
-
-  async function handleConfirmDelete() {
-    if (!deleteTarget) return;
-    const target = deleteTarget;
-    const { error } = await deleteEntry(target.id);
+  const loadEntries = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    const { entries: fetched, error } = await fetchCashbookEntries();
     if (error) {
-      setToast({ kind: 'error', message: error });
+      setLoadError(error);
     } else {
-      setToast({ kind: 'success', message: 'Transaksi berhasil dihapus.' });
-      setDeleteTarget(null);
+      setEntries(fetched);
     }
-  }
+    setLoading(false);
+  }, []);
 
-  function handleExportConfirm(columns: ExportColumn[]) {
-    // Exports exactly what's currently displayed (already filtered
-    // + sorted) — no extra database query, no service role.
-    exportCashbookToXlsx(displayed, columns, EXPORT_COLUMN_LABELS);
-    setIsExportOpen(false);
-    setToast({ kind: 'success', message: 'Buku_Kas_Wisuda.xlsx berhasil diunduh.' });
-  }
+  useEffect(() => {
+    loadEntries();
+  }, [loadEntries]);
+
+  useEffect(() => {
+    if (!feedback) return;
+    const timer = setTimeout(() => setFeedback(null), 4000);
+    return () => clearTimeout(timer);
+  }, [feedback]);
+
+  // Running balance is computed ONCE over the FULL dataset in
+  // canonical order (Section 6, 7 & 19) — filtering/sorting below
+  // never recomputes it, it only reorders/subsets the tagged rows.
+  const allDisplayRows = useMemo(() => computeCashbookDisplayRows(entries), [entries]);
+
+  const visibleRows = useMemo(() => {
+    const query = filters.search.trim().toLowerCase();
+    const filtered = allDisplayRows.filter((row) => {
+      const matchesSearch = query.length === 0 || row.description.toLowerCase().includes(query);
+      const matchesType = filters.type === 'all' || row.type === filters.type;
+      const matchesDivision = filters.division === 'all' || row.division === filters.division;
+      const matchesCurrency = filters.currency === 'all' || row.currency === filters.currency;
+      return matchesSearch && matchesType && matchesDivision && matchesCurrency;
+    });
+    return sortCashbookRows(filtered, filters.sort);
+  }, [allDisplayRows, filters]);
+
+  // Summary reflects the full roster regardless of the current
+  // filter/search, consistent with RAB Builder & Database Wisudawan.
+  const summary = useMemo(() => {
+    return entries.reduce(
+      (acc, entry) => {
+        const bucket = entry.currency === 'EGP' ? acc.egp : acc.idr;
+        if (entry.type === 'income') bucket.income += entry.amount;
+        else bucket.expense += entry.amount;
+        return acc;
+      },
+      { egp: { income: 0, expense: 0 }, idr: { income: 0, expense: 0 } }
+    );
+  }, [entries]);
+
+  const handleCreate = useCallback(
+    async (input: CreateCashbookInput) => {
+      const result = await createCashbookEntry(input);
+      if (result.success) {
+        setFormOpen(false);
+        setFeedback({ type: 'success', message: 'Transaksi berhasil ditambahkan.' });
+        loadEntries();
+      }
+      return result;
+    },
+    [loadEntries]
+  );
+
+  const handleDelete = useCallback(
+    async (id: string) => {
+      const { success, error } = await deleteCashbookEntry(id);
+      if (success) {
+        setFeedback({ type: 'success', message: 'Transaksi berhasil dihapus.' });
+        loadEntries();
+      } else {
+        setFeedback({ type: 'error', message: error ?? 'Gagal menghapus transaksi.' });
+      }
+    },
+    [loadEntries]
+  );
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-lg font-semibold text-gray-900">Buku Kas Digital</h1>
-        <p className="text-sm text-gray-500">Catat dan pantau transaksi kas kepanitiaan.</p>
+    <div className="relative min-h-full">
+      <div className="pointer-events-none fixed inset-0 -z-10 bg-gradient-to-br from-[#fdf8f6] via-[#faf5f3] to-[#f6ebee]">
+        <div className="absolute -top-24 right-0 h-96 w-96 rounded-full bg-[#7A1E33]/10 blur-3xl" />
+        <div className="absolute bottom-0 left-0 h-72 w-72 rounded-full bg-[#7A1E33]/5 blur-3xl" />
       </div>
 
-      {hasError ? (
-        <ErrorState message="Gagal memuat data Buku Kas. Coba muat ulang halaman." />
-      ) : (
-        <>
-          <div className="mb-6">
-            <CashbookSummary entries={withBalance} />
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-900">Buku Kas Digital</h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Catat dan pantau seluruh transaksi keuangan Wisuda Mahad Internasional.
+            </p>
           </div>
-
-          <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
-            <div className="rounded-lg border border-gray-200 bg-white p-4 lg:col-span-2">
-              <h2 className="mb-3 text-sm font-medium text-gray-500">Tambah Transaksi</h2>
-              <CashbookForm
-                onSuccess={() =>
-                  setToast({ kind: 'success', message: 'Transaksi berhasil disimpan.' })
-                }
-              />
-            </div>
-            <div className="rounded-lg border border-gray-200 bg-white p-4">
-              <h2 className="mb-3 text-sm font-medium text-gray-500">Filter &amp; Export</h2>
-              <CashbookFilters
-                divisionFilter={divisionFilter}
-                onDivisionFilterChange={setDivisionFilter}
-                typeFilter={typeFilter}
-                onTypeFilterChange={setTypeFilter}
-                currencyFilter={currencyFilter}
-                onCurrencyFilterChange={setCurrencyFilter}
-                sort={sort}
-                onSortChange={setSort}
-                onExportClick={() => setIsExportOpen(true)}
-              />
-            </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setExportDialogOpen(true)}
+              disabled={entries.length === 0}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/60 bg-white/50 px-4 py-2.5 text-sm font-medium text-slate-800 backdrop-blur transition-colors duration-200 hover:bg-white/80 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Download className="h-4 w-4" />
+              Export XLSX
+            </button>
+            <button
+              type="button"
+              onClick={() => setFormOpen(true)}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#7A1E33] px-4 py-2.5 text-sm font-medium text-white shadow-sm shadow-[#7A1E33]/20 transition-colors duration-200 hover:bg-[#671729] focus:outline-none focus:ring-2 focus:ring-[#7A1E33]/40"
+            >
+              <Plus className="h-4 w-4" />
+              Tambah Transaksi
+            </button>
           </div>
+        </div>
 
-          <h2 className="mb-3 text-sm font-medium text-gray-500">Database Transaksi</h2>
-          <CashbookTable
-            entries={displayed}
-            deletingId={deletingId}
-            onRequestDelete={setDeleteTarget}
-          />
-        </>
-      )}
+        {feedback && (
+          <div
+            role="status"
+            className={`mb-4 rounded-lg border px-4 py-3 text-sm ${
+              feedback.type === 'success'
+                ? 'border-emerald-200/60 bg-emerald-50/80 text-emerald-700'
+                : 'border-rose-200/60 bg-rose-50/80 text-rose-700'
+            }`}
+          >
+            {feedback.message}
+          </div>
+        )}
 
-      {deleteTarget && (
-        <CashbookDeleteModal
-          entry={deleteTarget}
-          isDeleting={deletingId === deleteTarget.id}
-          onClose={() => setDeleteTarget(null)}
-          onConfirm={handleConfirmDelete}
+        <CashbookSummary
+          egpIncome={summary.egp.income}
+          egpExpense={summary.egp.expense}
+          egpBalance={summary.egp.income - summary.egp.expense}
+          idrIncome={summary.idr.income}
+          idrExpense={summary.idr.expense}
+          idrBalance={summary.idr.income - summary.idr.expense}
         />
-      )}
 
-      {isExportOpen && (
-        <CashbookExportModal onClose={() => setIsExportOpen(false)} onConfirm={handleExportConfirm} />
-      )}
+        <div className="mt-4">
+          <CashbookFilters filters={filters} onChange={setFilters} />
+        </div>
 
-      {toast && <Toast toast={toast} onDismiss={() => setToast(null)} />}
+        <div className="mt-4">
+          <CashbookTable
+            rows={visibleRows}
+            loading={loading}
+            loadError={loadError}
+            hasAnyEntries={entries.length > 0}
+            onDelete={handleDelete}
+            onRetry={loadEntries}
+            onAddTransaction={() => setFormOpen(true)}
+          />
+        </div>
+      </div>
+
+      <CashbookForm open={formOpen} onClose={() => setFormOpen(false)} onSubmit={handleCreate} />
+
+      {/* Export uses the same filtered/sorted view as the table
+          (visibleRows, balance already attached) — preserves this
+          feature's existing "export reflects the current filter"
+          behavior (Section 18); this task only changes HOW that
+          export happens, not which dataset it draws from. */}
+      <CashbookExportDialog
+        open={exportDialogOpen}
+        rows={visibleRows}
+        onClose={() => setExportDialogOpen(false)}
+      />
     </div>
   );
 }

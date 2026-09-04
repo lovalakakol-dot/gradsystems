@@ -1,44 +1,33 @@
-export type Division =
-  | 'Badan Pengurus Harian'
-  | 'Divisi Acara'
-  | 'Divisi Pendataan'
-  | 'Divisi Media'
-  | 'Divisi Humas'
-  | 'Divisi Logistik';
-
-export const DIVISIONS: Division[] = [
+export const DIVISIONS = [
   'Badan Pengurus Harian',
   'Divisi Acara',
   'Divisi Pendataan',
   'Divisi Media',
   'Divisi Humas',
   'Divisi Logistik',
-];
+] as const;
 
-export type Currency = 'EGP' | 'IDR';
+export type Division = (typeof DIVISIONS)[number];
 
-/**
- * Mirrors rab_items exactly, per the Step 7 migration
- * (20260824000000_domain_schema_refinement.sql) — not a guess,
- * transcribed from the migration I authored. Scoped to this
- * feature only; does not touch src/types/database.types.ts.
- */
-export interface RabItem {
+export const CURRENCIES = ['EGP', 'IDR'] as const;
+export type Currency = (typeof CURRENCIES)[number];
+
+export interface RABItem {
   id: string;
   item_name: string;
-  quantity: number | null;
-  unit: string | null;
+  quantity: number;
+  unit: string;
   division: Division;
   estimated_cost: number;
   currency: Currency;
   description: string | null;
-  created_by: string;
+  created_by: string | null;
   updated_by: string | null;
   created_at: string;
   updated_at: string;
 }
 
-export interface CreateRabItemInput {
+export interface CreateRABInput {
   item_name: string;
   quantity: number;
   unit: string;
@@ -48,59 +37,102 @@ export interface CreateRabItemInput {
   description: string | null;
 }
 
-export type SortOption =
+export type RABDivisionFilter = 'all' | Division;
+
+export type RABSortOption =
   | 'newest'
   | 'name_asc'
   | 'name_desc'
-  | 'largest_egp'
-  | 'smallest_egp'
-  | 'largest_idr'
-  | 'smallest_idr';
+  | 'egp_desc'
+  | 'egp_asc'
+  | 'idr_desc'
+  | 'idr_asc';
 
-export const SORT_LABELS: Record<SortOption, string> = {
+export const SORT_LABELS: Record<RABSortOption, string> = {
   newest: 'Terbaru',
   name_asc: 'Nama A-Z',
   name_desc: 'Nama Z-A',
-  largest_egp: 'Anggaran Terbesar — EGP',
-  smallest_egp: 'Anggaran Terkecil — EGP',
-  largest_idr: 'Anggaran Terbesar — IDR',
-  smallest_idr: 'Anggaran Terkecil — IDR',
+  egp_desc: 'Anggaran Terbesar EGP',
+  egp_asc: 'Anggaran Terkecil EGP',
+  idr_desc: 'Anggaran Terbesar IDR',
+  idr_asc: 'Anggaran Terkecil IDR',
 };
 
-export const EXPORT_COLUMNS = [
-  'division',
-  'item_name',
-  'quantity',
-  'unit',
-  'estimated_egp',
-  'estimated_idr',
-  'description',
-] as const;
-
-export type ExportColumn = (typeof EXPORT_COLUMNS)[number];
-
-export const EXPORT_COLUMN_LABELS: Record<ExportColumn, string> = {
-  division: 'Divisi',
-  item_name: 'Nama Item Anggaran',
-  quantity: 'Quantity',
-  unit: 'Unit',
-  estimated_egp: 'Estimasi EGP',
-  estimated_idr: 'Estimasi IDR',
-  description: 'Catatan',
-};
-/**
- * Explicit table-shape override for Supabase's `.from<T>()` generic
- * escape hatch — the documented mechanism for querying a table that
- * the client's bound Database type doesn't know about, without
- * resorting to `any`/`as never`/casts. Used as
- * `supabase.from<RabTable>('rab_items')` everywhere this feature
- * talks to the database.
- */
-export interface RabTable {
-  Row: RabItem;
-  Insert: CreateRabItemInput;
-  Update: Partial<CreateRabItemInput>;
+export interface RABFiltersState {
+  search: string;
+  division: RABDivisionFilter;
+  sort: RABSortOption;
 }
 
-export const ALL_DIVISIONS = 'Semua Divisi' as const;
-export type DivisionFilter = Division | typeof ALL_DIVISIONS;
+export const DEFAULT_RAB_FILTERS: RABFiltersState = {
+  search: '',
+  division: 'all',
+  sort: 'newest',
+};
+
+export interface RABFormData {
+  item_name: string;
+  quantity: string;
+  unit: string;
+  division: Division;
+  currency: Currency;
+  estimated_cost: string;
+  description: string;
+}
+
+export const EMPTY_RAB_FORM: RABFormData = {
+  item_name: '',
+  quantity: '',
+  unit: '',
+  division: 'Badan Pengurus Harian',
+  currency: 'EGP',
+  estimated_cost: '',
+  description: '',
+};
+
+export interface RABFormErrors {
+  item_name?: string;
+  quantity?: string;
+  unit?: string;
+  division?: string;
+  currency?: string;
+  estimated_cost?: string;
+  form?: string;
+}
+
+/**
+ * Client-side mirror of Section 10's validation rules. RLS + the
+ * database are the real source of truth; this only gives fast
+ * feedback before a round trip.
+ */
+export function validateRABForm(form: RABFormData): RABFormErrors {
+  const errors: RABFormErrors = {};
+
+  if (!form.item_name.trim()) {
+    errors.item_name = 'Nama item tidak boleh kosong.';
+  }
+
+  const quantity = Number(form.quantity);
+  if (!form.quantity.trim() || Number.isNaN(quantity) || quantity <= 0) {
+    errors.quantity = 'Quantity harus lebih dari 0.';
+  }
+
+  if (!form.unit.trim()) {
+    errors.unit = 'Satuan tidak boleh kosong.';
+  }
+
+  if (!DIVISIONS.includes(form.division)) {
+    errors.division = 'Divisi tidak valid.';
+  }
+
+  if (!CURRENCIES.includes(form.currency)) {
+    errors.currency = 'Mata uang tidak valid.';
+  }
+
+  const cost = Number(form.estimated_cost);
+  if (!form.estimated_cost.trim() || Number.isNaN(cost) || cost <= 0) {
+    errors.estimated_cost = 'Estimasi biaya harus lebih dari 0.';
+  }
+
+  return errors;
+}

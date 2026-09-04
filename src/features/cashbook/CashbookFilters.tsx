@@ -1,88 +1,107 @@
 'use client';
 
-import { Download } from 'lucide-react';
-import Select from '@/shared/components/Select';
-import Button from '@/shared/components/Button';
-import {
-  ALL_CURRENCIES,
-  ALL_DIVISIONS,
-  ALL_TYPES,
-  DIVISIONS,
-  SORT_LABELS,
-  type CurrencyFilter,
-  type DivisionFilter,
-  type SortOption,
-  type TypeFilter,
+import { Search } from 'lucide-react';
+import { DIVISIONS, SORT_LABELS, TYPE_LABELS } from './types';
+import type {
+  CashbookCurrencyFilter,
+  CashbookDivisionFilter,
+  CashbookFiltersState,
+  CashbookSortOption,
+  CashbookTypeFilter,
 } from './types';
 
-export default function CashbookFilters({
-  divisionFilter,
-  onDivisionFilterChange,
-  typeFilter,
-  onTypeFilterChange,
-  currencyFilter,
-  onCurrencyFilterChange,
-  sort,
-  onSortChange,
-  onExportClick,
-}: {
-  divisionFilter: DivisionFilter;
-  onDivisionFilterChange: (value: DivisionFilter) => void;
-  typeFilter: TypeFilter;
-  onTypeFilterChange: (value: TypeFilter) => void;
-  currencyFilter: CurrencyFilter;
-  onCurrencyFilterChange: (value: CurrencyFilter) => void;
-  sort: SortOption;
-  onSortChange: (value: SortOption) => void;
-  onExportClick: () => void;
-}) {
+interface CashbookFiltersProps {
+  filters: CashbookFiltersState;
+  onChange: (filters: CashbookFiltersState) => void;
+}
+
+const TYPE_OPTIONS: { value: CashbookTypeFilter; label: string }[] = [
+  { value: 'all', label: 'Semua Tipe' },
+  { value: 'income', label: TYPE_LABELS.income },
+  { value: 'expense', label: TYPE_LABELS.expense },
+];
+
+const DIVISION_OPTIONS: { value: CashbookDivisionFilter; label: string }[] = [
+  { value: 'all', label: 'Semua Divisi' },
+  ...DIVISIONS.map((division) => ({ value: division, label: division })),
+];
+
+const CURRENCY_OPTIONS: { value: CashbookCurrencyFilter; label: string }[] = [
+  { value: 'all', label: 'Semua Mata Uang' },
+  { value: 'EGP', label: 'EGP' },
+  { value: 'IDR', label: 'IDR' },
+];
+
+const SORT_OPTIONS = Object.entries(SORT_LABELS) as [CashbookSortOption, string][];
+
+const selectClass =
+  'rounded-lg border border-white/60 bg-white/50 px-3 py-2 text-sm text-slate-900 backdrop-blur transition-colors duration-200 focus:border-[#7A1E33]/50 focus:outline-none focus:ring-2 focus:ring-[#7A1E33]/40';
+
+export function CashbookFilters({ filters, onChange }: CashbookFiltersProps) {
   return (
-    <div className="space-y-3">
-      <Select
-        label="Filter Divisi"
-        value={divisionFilter}
-        onChange={(e) => onDivisionFilterChange(e.target.value as DivisionFilter)}
+    <div className="flex flex-col gap-3 rounded-xl border border-white/40 bg-white/60 p-4 shadow-lg shadow-black/5 backdrop-blur-xl lg:flex-row lg:items-center lg:flex-wrap">
+      <div className="relative flex-1 lg:min-w-[220px]">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+        <input
+          type="text"
+          value={filters.search}
+          onChange={(event) => onChange({ ...filters, search: event.target.value })}
+          placeholder="Cari keterangan..."
+          className="w-full rounded-lg border border-white/60 bg-white/50 py-2 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 backdrop-blur transition-colors duration-200 focus:border-[#7A1E33]/50 focus:outline-none focus:ring-2 focus:ring-[#7A1E33]/40"
+        />
+      </div>
+
+      <select
+        value={filters.type}
+        onChange={(event) => onChange({ ...filters, type: event.target.value as CashbookTypeFilter })}
+        className={`${selectClass} sm:w-40`}
       >
-        <option value={ALL_DIVISIONS}>{ALL_DIVISIONS}</option>
-        {DIVISIONS.map((d) => (
-          <option key={d} value={d}>
-            {d}
+        {TYPE_OPTIONS.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
           </option>
         ))}
-      </Select>
+      </select>
 
-      <Select
-        label="Filter Tipe"
-        value={typeFilter}
-        onChange={(e) => onTypeFilterChange(e.target.value as TypeFilter)}
+      <select
+        value={filters.division}
+        onChange={(event) =>
+          onChange({ ...filters, division: event.target.value as CashbookDivisionFilter })
+        }
+        className={`${selectClass} sm:w-56`}
       >
-        <option value={ALL_TYPES}>{ALL_TYPES}</option>
-        <option value="income">Pemasukan</option>
-        <option value="expense">Pengeluaran</option>
-      </Select>
-
-      <Select
-        label="Filter Mata Uang"
-        value={currencyFilter}
-        onChange={(e) => onCurrencyFilterChange(e.target.value as CurrencyFilter)}
-      >
-        <option value={ALL_CURRENCIES}>{ALL_CURRENCIES}</option>
-        <option value="EGP">EGP</option>
-        <option value="IDR">IDR</option>
-      </Select>
-
-      <Select label="Urutkan" value={sort} onChange={(e) => onSortChange(e.target.value as SortOption)}>
-        {(Object.keys(SORT_LABELS) as SortOption[]).map((key) => (
-          <option key={key} value={key}>
-            {SORT_LABELS[key]}
+        {DIVISION_OPTIONS.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
           </option>
         ))}
-      </Select>
+      </select>
 
-      <Button variant="secondary" onClick={onExportClick} className="w-full">
-        <Download className="h-4 w-4" />
-        Export to Spreadsheet
-      </Button>
+      <select
+        value={filters.currency}
+        onChange={(event) =>
+          onChange({ ...filters, currency: event.target.value as CashbookCurrencyFilter })
+        }
+        className={`${selectClass} sm:w-40`}
+      >
+        {CURRENCY_OPTIONS.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+
+      <select
+        value={filters.sort}
+        onChange={(event) => onChange({ ...filters, sort: event.target.value as CashbookSortOption })}
+        className={`${selectClass} sm:w-48`}
+      >
+        {SORT_OPTIONS.map(([value, label]) => (
+          <option key={value} value={value}>
+            {label}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }

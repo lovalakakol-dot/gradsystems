@@ -1,3 +1,43 @@
+export interface ProfilesTableReference {
+  Row: {
+    id: string;
+    username: string;
+    full_name: string | null;
+    role: 'admin' | 'bendahara' | 'pendataan' | 'acara';
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+  };
+  Insert: {
+    id?: string;
+    username: string;
+    full_name?: string | null;
+    role?: 'admin' | 'bendahara' | 'pendataan' | 'acara';
+    is_active?: boolean;
+    created_at?: string;
+    updated_at?: string;
+  };
+  Update: {
+    id?: string;
+    username?: string;
+    full_name?: string | null;
+    role?: 'admin' | 'bendahara' | 'pendataan' | 'acara';
+    is_active?: boolean;
+    created_at?: string;
+    updated_at?: string;
+  };
+  Relationships: [];
+}
+
+export interface AdminUpdateUserFunctionReference {
+  Args: {
+    p_target_user_id: string;
+    p_new_role: 'admin' | 'bendahara' | 'pendataan' | 'acara' | null;
+    p_new_is_active: boolean | null;
+  };
+  Returns: void;
+}
+
 export type UserRole = 'admin' | 'bendahara' | 'pendataan' | 'acara';
 
 export type CurrencyCode = 'IDR' | 'EGP';
@@ -358,3 +398,121 @@ export interface Database {
     CompositeTypes: {};
   };
 } 
+
+export interface RabItemsTableReference {
+  Row: {
+    id: string;
+    item_name: string;
+    quantity: number;
+    unit: string;
+    division:
+      | 'Badan Pengurus Harian'
+      | 'Divisi Acara'
+      | 'Divisi Pendataan'
+      | 'Divisi Media'
+      | 'Divisi Humas'
+      | 'Divisi Logistik';
+    estimated_cost: number;
+    currency: 'EGP' | 'IDR';
+    description: string | null;
+    created_by: string | null;
+    updated_by: string | null;
+    created_at: string;
+    updated_at: string;
+  };
+  Insert: {
+    id?: string;
+    item_name: string;
+    quantity: number;
+    unit: string;
+    division:
+      | 'Badan Pengurus Harian'
+      | 'Divisi Acara'
+      | 'Divisi Pendataan'
+      | 'Divisi Media'
+      | 'Divisi Humas'
+      | 'Divisi Logistik';
+    estimated_cost: number;
+    currency: 'EGP' | 'IDR';
+    description?: string | null;
+    created_by?: string | null;
+    updated_by?: string | null;
+    created_at?: string;
+    updated_at?: string;
+  };
+  Update: {
+    id?: string;
+    item_name?: string;
+    quantity?: number;
+    unit?: string;
+    division?:
+      | 'Badan Pengurus Harian'
+      | 'Divisi Acara'
+      | 'Divisi Pendataan'
+      | 'Divisi Media'
+      | 'Divisi Humas'
+      | 'Divisi Logistik';
+    estimated_cost?: number;
+    currency?: 'EGP' | 'IDR';
+    description?: string | null;
+    created_by?: string | null;
+    updated_by?: string | null;
+    created_at?: string;
+    updated_at?: string;
+  };
+  Relationships: [];
+}
+
+type DivisionValue =
+  | 'Badan Pengurus Harian'
+  | 'Divisi Acara'
+  | 'Divisi Pendataan'
+  | 'Divisi Media'
+  | 'Divisi Humas'
+  | 'Divisi Logistik';
+
+export interface CashbookEntriesTableReference {
+  Row: {
+    id: string;
+    transaction_date: string;
+    type: 'income' | 'expense';
+    category: string;
+    description: string;
+    division: DivisionValue;
+    currency: 'EGP' | 'IDR';
+    amount: number;
+    payment_method: string;
+    attachment_url: string | null;
+    created_at: string;
+    updated_at: string;
+  };
+  Insert: {
+    id?: string;
+    transaction_date: string;
+    type: 'income' | 'expense';
+    category: string;
+    description: string;
+    division: DivisionValue;
+    currency: 'EGP' | 'IDR';
+    amount: number;
+    payment_method: string;
+    attachment_url?: string | null;
+    created_at?: string;
+    updated_at?: string;
+  };
+  Update: {
+    id?: string;
+    transaction_date?: string;
+    type?: 'income' | 'expense';
+    category?: string;
+    description?: string;
+    division?: DivisionValue;
+    currency?: 'EGP' | 'IDR';
+    amount?: number;
+    payment_method?: string;
+    attachment_url?: string | null;
+    created_at?: string;
+    updated_at?: string;
+  };
+  Relationships: [];
+}

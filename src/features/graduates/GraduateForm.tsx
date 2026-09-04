@@ -1,265 +1,349 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { ChevronDown, Search } from 'lucide-react';
-import { COUNTRIES_UNIQUE, getCountryNameAr } from './countries';
-import { useGraduateMutations } from './Usegraduatemutations';
+import { useState, useMemo, useRef, useEffect, type FormEvent } from 'react';
+import Select from '@/shared/components/Select';
+import Button from '@/shared/components/Button';
+import InlineAlert from '@/shared/components/InlineAlert';
+import { COUNTRIES } from './countries';
+import { useGraduateMutations, normalizeWhatsappNumber } from './useGraduateMutations';
 import {
-  DEFAULT_GRADUATE_FORM_VALUES,
-  SHIRT_SIZE_LABEL,
-  VERIFICATION_STATUS_LABEL,
-  type GraduateFormErrors,
-  type GraduateFormValues,
+  ATTIRE_LABELS,
+  ATTIRES,
+  GENDER_LABELS,
+  SHIRT_SIZES,
+  SHIRT_SIZE_LABELS,
+  VERIFICATION_LABELS,
+  VERIFICATION_STATUSES,
+  type Attire,
+  type Gender,
   type ShirtSize,
   type VerificationStatus,
 } from './types';
 
-const INPUT_CLASS =
-  'w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-[#7A1E33] focus:outline-none focus:ring-1 focus:ring-[#7A1E33]';
-
-function validate(values: GraduateFormValues): GraduateFormErrors {
-  const errors: GraduateFormErrors = {};
-  if (values.participant_number.trim().length === 0) {
-    errors.participant_number = 'Nomor peserta wajib diisi.';
-  }
-  if (values.full_name_ar.trim().length === 0) {
-    errors.full_name_ar = 'Nama lengkap (Arab) wajib diisi.';
-  }
-  if (values.country_code.trim().length === 0) {
-    errors.country_code = 'Asal negara wajib dipilih.';
-  }
-  if (values.shirt_size === '') {
-    errors.shirt_size = 'Ukuran baju wajib dipilih.';
-  }
-  const whatsappDigits = values.whatsapp_number.replace(/[^\d]/g, '');
-  if (whatsappDigits.length === 0) {
-    errors.whatsapp_number = 'Nomor WhatsApp wajib diisi.';
-  } else if (whatsappDigits.length < 8) {
-    errors.whatsapp_number = 'Nomor WhatsApp tidak valid.';
-  }
-  return errors;
+interface FieldErrors {
+  full_name_ar?: string;
+  gender?: string;
+  country_code?: string;
+  whatsapp_number?: string;
+  attire?: string;
+  shirt_size?: string;
+  verification_status?: string;
 }
 
-function CountrySelect({
-  value,
-  onChange,
-  hasError,
-}: {
-  value: string;
-  onChange: (code: string) => void;
-  hasError: boolean;
-}) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [query, setQuery] = useState('');
-  const containerRef = useRef<HTMLDivElement>(null);
+export default function GraduateForm({ onSuccess }: { onSuccess: () => void }) {
+  const { createGraduate, isCreating } = useGraduateMutations();
+
+  const [fullNameAr, setFullNameAr] = useState('');
+  const [gender, setGender] = useState<Gender | ''>('');
+  const [countryCode, setCountryCode] = useState('');
+  const [whatsapp, setWhatsapp] = useState('');
+  const [attire, setAttire] = useState<Attire | ''>('');
+  const [shirtSize, setShirtSize] = useState<ShirtSize | ''>('');
+  const [verification, setVerification] = useState<VerificationStatus | ''>('');
+  const [errors, setErrors] = useState<FieldErrors>({});
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // Combobox State untuk Negara
+  const [isCountryOpen, setIsCountryOpen] = useState(false);
+  const [countryQuery, setCountryQuery] = useState('');
+  const comboboxRef = useRef<HTMLDivElement>(null);
+
+  const selectedCountry = useMemo(() => {
+    return COUNTRIES.find((c) => c.code === countryCode);
+  }, [countryCode]);
+
+  const filteredCountries = useMemo(() => {
+    if (!countryQuery.trim()) return COUNTRIES;
+    const q = countryQuery.toLowerCase().trim();
+    return COUNTRIES.filter(
+      (c) =>
+        c.nameAr.toLowerCase().includes(q) ||
+        c.code.toLowerCase().includes(q)
+    );
+  }, [countryQuery]);
 
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
+    function handleClickOutside(e: MouseEvent) {
+      if (comboboxRef.current && !comboboxRef.current.contains(e.target as Node)) {
+        setIsCountryOpen(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return COUNTRIES_UNIQUE;
-    return COUNTRIES_UNIQUE.filter((c) => c.nameAr.toLowerCase().includes(q));
-  }, [query]);
+  function validate(): FieldErrors {
+    const next: FieldErrors = {};
+    if (!fullNameAr.trim()) next.full_name_ar = 'Nama wajib diisi.';
+    if (!gender) next.gender = 'Jenis kelamin wajib dipilih.';
+    if (!countryCode) next.country_code = 'Negara wajib dipilih.';
 
-  return (
-    <div className="relative" ref={containerRef}>
-      <button
-        type="button"
-        onClick={() => setIsOpen((v) => !v)}
-        className={`flex w-full items-center justify-between rounded-md border px-3 py-2 text-sm ${
-          hasError ? 'border-red-400' : 'border-gray-300'
-        } ${value ? 'text-gray-900' : 'text-gray-500'}`}
-      >
-        <span dir="rtl" className="truncate">
-          {value ? getCountryNameAr(value) : 'Pilih negara'}
-        </span>
-        <ChevronDown className="h-4 w-4 flex-shrink-0 text-gray-400" />
-      </button>
+    const digits = normalizeWhatsappNumber(whatsapp);
+    if (!whatsapp.trim()) {
+      next.whatsapp_number = 'Nomor WhatsApp wajib diisi.';
+    } else if (digits.length < 8 || digits.length > 15) {
+      next.whatsapp_number = 'Nomor WhatsApp tidak valid.';
+    }
 
-      {isOpen && (
-        <div className="absolute z-20 mt-1 w-full rounded-md border border-gray-200 bg-white shadow-lg">
-          <div className="flex items-center gap-2 border-b border-gray-100 px-3 py-2">
-            <Search className="h-3.5 w-3.5 text-gray-400" />
-            <input
-              autoFocus
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Cari negara..."
-              className="w-full text-sm text-gray-900 focus:outline-none"
-              dir="rtl"
-            />
-          </div>
-          <div className="max-h-56 overflow-y-auto">
-            {filtered.length === 0 ? (
-              <p className="px-3 py-2 text-sm text-gray-500">Negara tidak ditemukan.</p>
-            ) : (
-              filtered.map((c) => (
-                <button
-                  key={c.code}
-                  type="button"
-                  onClick={() => {
-                    onChange(c.code);
-                    setQuery('');
-                    setIsOpen(false);
-                  }}
-                  className="block w-full px-3 py-2 text-right text-sm text-gray-900 hover:bg-gray-50"
-                  dir="rtl"
-                >
-                  {c.nameAr}
-                </button>
-              ))
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-export default function GraduateForm({ onSuccess }: { onSuccess: () => void }) {
-  const { createGraduate, isCreating } = useGraduateMutations();
-  const [values, setValues] = useState<GraduateFormValues>(DEFAULT_GRADUATE_FORM_VALUES);
-  const [errors, setErrors] = useState<GraduateFormErrors>({});
-  const [submitError, setSubmitError] = useState<string | null>(null);
+    if (!attire) next.attire = 'Atribut wisuda wajib dipilih.';
+    if (!shirtSize) next.shirt_size = 'Ukuran baju wajib dipilih.';
+    if (!verification) next.verification_status = 'Status berkas wajib dipilih.';
+    return next;
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    const nextErrors = validate(values);
-    setErrors(nextErrors);
-    if (Object.keys(nextErrors).length > 0) return;
-
     setSubmitError(null);
-    const { error } = await createGraduate(values);
+
+    const fieldErrors = validate();
+    setErrors(fieldErrors);
+    if (Object.keys(fieldErrors).length > 0) return;
+
+    const { error } = await createGraduate({
+      full_name_ar: fullNameAr.trim(),
+      gender: gender as Gender,
+      country_code: countryCode,
+      whatsapp_number: normalizeWhatsappNumber(whatsapp),
+      attire: attire as Attire,
+      shirt_size: shirtSize as ShirtSize,
+      verification_status: verification as VerificationStatus,
+    });
+
     if (error) {
       setSubmitError(error);
       return;
     }
-    setValues(DEFAULT_GRADUATE_FORM_VALUES);
+
+    setFullNameAr('');
+    setGender('');
+    setCountryCode('');
+    setCountryQuery('');
+    setWhatsapp('');
+    setAttire('');
+    setShirtSize('');
+    setVerification('');
+    setErrors({});
     onSuccess();
   }
 
   return (
-    <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      {/* 1. No. Peserta */}
-      <div className="sm:col-span-2">
-        <label className="mb-1 block text-xs font-medium text-gray-500">No. Peserta</label>
-        <input
-          value={values.participant_number}
-          onChange={(e) => setValues((v) => ({ ...v, participant_number: e.target.value }))}
-          placeholder="Contoh: 014"
-          className={`${INPUT_CLASS} ${errors.participant_number ? 'border-red-400' : ''}`}
-        />
-        {errors.participant_number && (
-          <p className="mt-1 text-xs text-red-600">{errors.participant_number}</p>
-        )}
-      </div>
+    <form onSubmit={handleSubmit} className="space-y-6 text-gray-800">
+      {/* Group 1: Informasi Pribadi */}
+      <div className="space-y-4">
+        <div className="border-b border-gray-200/80 pb-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+            Informasi Pribadi
+          </h3>
+        </div>
 
-      {/* 2. Nama Lengkap (Arab) */}
-      <div className="sm:col-span-2">
-        <label className="mb-1 block text-xs font-medium text-gray-500">Nama Lengkap (Arab)</label>
-        <input
-          value={values.full_name_ar}
-          onChange={(e) => setValues((v) => ({ ...v, full_name_ar: e.target.value }))}
-          dir="rtl"
-          placeholder="الاسم الكامل"
-          className={`${INPUT_CLASS} ${errors.full_name_ar ? 'border-red-400' : ''}`}
-        />
-        {errors.full_name_ar && <p className="mt-1 text-xs text-red-600">{errors.full_name_ar}</p>}
-      </div>
-
-      {/* 3. Asal Negara */}
-      <div>
-        <label className="mb-1 block text-xs font-medium text-gray-500">Asal Negara</label>
-        <CountrySelect
-          value={values.country_code}
-          onChange={(code) => setValues((v) => ({ ...v, country_code: code }))}
-          hasError={Boolean(errors.country_code)}
-        />
-        {errors.country_code && <p className="mt-1 text-xs text-red-600">{errors.country_code}</p>}
-      </div>
-
-      {/* 4. Ukuran Baju */}
-      <div>
-        <label className="mb-1 block text-xs font-medium text-gray-500">Ukuran Baju</label>
-        <select
-          value={values.shirt_size}
-          onChange={(e) =>
-            setValues((v) => ({ ...v, shirt_size: e.target.value as ShirtSize | '' }))
-          }
-          className={`${INPUT_CLASS} ${errors.shirt_size ? 'border-red-400' : ''}`}
-        >
-          <option value="">Pilih ukuran</option>
-          {(Object.entries(SHIRT_SIZE_LABEL) as [ShirtSize, string][]).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-        {errors.shirt_size && <p className="mt-1 text-xs text-red-600">{errors.shirt_size}</p>}
-      </div>
-
-      {/* 5. No. WhatsApp */}
-      <div className="sm:col-span-2">
-        <label className="mb-1 block text-xs font-medium text-gray-500">No. WhatsApp</label>
-        <input
-          value={values.whatsapp_number}
-          onChange={(e) => setValues((v) => ({ ...v, whatsapp_number: e.target.value }))}
-          type="tel"
-          placeholder="Contoh: 6281234567890 (kode negara, tanpa +)"
-          className={`${INPUT_CLASS} ${errors.whatsapp_number ? 'border-red-400' : ''}`}
-        />
-        {errors.whatsapp_number ? (
-          <p className="mt-1 text-xs text-red-600">{errors.whatsapp_number}</p>
-        ) : (
-          <p className="mt-1 text-xs text-gray-400">
-            Gunakan format internasional tanpa tanda +, contoh 6281234567890.
-          </p>
-        )}
-      </div>
-
-      {/* 6. Berkas Terverifikasi */}
-      <div className="sm:col-span-2">
-        <label className="mb-1 block text-xs font-medium text-gray-500">Berkas Terverifikasi</label>
-        <select
-          value={values.verification_status}
-          onChange={(e) =>
-            setValues((v) => ({
-              ...v,
-              verification_status: e.target.value as VerificationStatus,
-            }))
-          }
-          className={INPUT_CLASS}
-        >
-          {(Object.entries(VERIFICATION_STATUS_LABEL) as [VerificationStatus, string][]).map(
-            ([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            )
+        {/* 1. Nama Lengkap — Full Width */}
+        <div>
+          <label className="mb-1 block text-xs font-medium text-gray-700">
+            Nama Lengkap <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="text"
+            dir="rtl"
+            lang="ar"
+            value={fullNameAr}
+            onChange={(e) => setFullNameAr(e.target.value)}
+            disabled={isCreating}
+            placeholder="أحمد محمد"
+            className={`block h-10 w-full rounded-lg border bg-white px-3 text-right font-['Amiri',serif] text-base text-gray-900 shadow-sm transition placeholder:text-gray-400 focus:border-[#7A1E33] focus:outline-none focus:ring-1 focus:ring-[#7A1E33]/30 disabled:cursor-not-allowed disabled:opacity-60 ${
+              errors.full_name_ar ? 'border-red-500 ring-1 ring-red-500/20' : 'border-gray-200 hover:border-gray-300'
+            }`}
+          />
+          {errors.full_name_ar && (
+            <p className="mt-1 text-xs text-red-600">{errors.full_name_ar}</p>
           )}
-        </select>
+        </div>
+
+        {/* Grid 3 Kolom Presisi Sejajar */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 items-start">
+          {/* 2. Jenis Kelamin */}
+          <div className="flex flex-col">
+            <Select
+              label="Jenis Kelamin"
+              value={gender}
+              onChange={(e) => setGender(e.target.value as Gender)}
+              disabled={isCreating}
+            >
+              <option value="">Pilih Jenis Kelamin</option>
+              {(Object.keys(GENDER_LABELS) as Gender[]).map((g) => (
+                <option key={g} value={g}>
+                  {GENDER_LABELS[g]}
+                </option>
+              ))}
+            </Select>
+            {errors.gender && (
+              <p className="mt-1 text-xs text-red-600">{errors.gender}</p>
+            )}
+          </div>
+
+          {/* 3. Asal Negara (Searchable Combobox) */}
+          <div className="relative flex flex-col" ref={comboboxRef}>
+            <label className="mb-1 block text-xs font-medium text-gray-700">
+              Asal Negara <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Pilih atau cari negara..."
+                value={isCountryOpen ? countryQuery : selectedCountry ? `${selectedCountry.nameAr} (${selectedCountry.code})` : ''}
+                onFocus={() => {
+                  setIsCountryOpen(true);
+                  setCountryQuery('');
+                }}
+                onChange={(e) => {
+                  setCountryQuery(e.target.value);
+                  if (!isCountryOpen) setIsCountryOpen(true);
+                }}
+                disabled={isCreating}
+                className={`block h-9 w-full rounded-lg border bg-white px-3 text-xs text-gray-900 shadow-sm transition placeholder:text-gray-400 focus:border-[#7A1E33] focus:outline-none focus:ring-1 focus:ring-[#7A1E33]/30 disabled:cursor-not-allowed disabled:opacity-60 ${
+                  errors.country_code ? 'border-red-500 ring-1 ring-red-500/20' : 'border-gray-200 hover:border-gray-300'
+                }`}
+              />
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-gray-400">
+                <svg className="h-4 w-4 fill-current" viewBox="0 0 20 20">
+                  <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+                </svg>
+              </div>
+            </div>
+
+            {isCountryOpen && (
+              <div className="absolute top-full left-0 z-20 mt-1 max-h-48 w-full overflow-auto rounded-lg border border-gray-200 bg-white py-1 text-xs shadow-lg ring-1 ring-black/5">
+                {filteredCountries.length === 0 ? (
+                  <div className="px-3 py-2 text-gray-400">Negara tidak ditemukan</div>
+                ) : (
+                  filteredCountries.map((c) => (
+                    <button
+                      key={c.code}
+                      type="button"
+                      onClick={() => {
+                        setCountryCode(c.code);
+                        setIsCountryOpen(false);
+                        setCountryQuery('');
+                      }}
+                      className={`flex w-full items-center justify-between px-3 py-2 text-left transition hover:bg-[#7A1E33]/5 hover:text-[#7A1E33] ${
+                        countryCode === c.code ? 'bg-[#7A1E33]/10 font-semibold text-[#7A1E33]' : 'text-gray-700'
+                      }`}
+                    >
+                      <span dir="rtl" className="font-['Amiri',serif] text-sm">{c.nameAr}</span>
+                      <span className="text-[10px] font-mono text-gray-400">{c.code}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+
+            {errors.country_code && (
+              <p className="mt-1 text-xs text-red-600">{errors.country_code}</p>
+            )}
+          </div>
+
+          {/* 4. Nomor WhatsApp */}
+          <div className="relative flex flex-col">
+            <label className="mb-1 block text-xs font-medium text-gray-700">
+              Nomor WhatsApp <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="tel"
+              value={whatsapp}
+              onChange={(e) => setWhatsapp(e.target.value)}
+              disabled={isCreating}
+              placeholder="201012345678"
+              className={`block h-9 w-full rounded-lg border bg-white px-3 text-xs text-gray-900 shadow-sm transition placeholder:text-gray-400 focus:border-[#7A1E33] focus:outline-none focus:ring-1 focus:ring-[#7A1E33]/30 disabled:cursor-not-allowed disabled:opacity-60 ${
+                errors.whatsapp_number ? 'border-red-500 ring-1 ring-red-500/20' : 'border-gray-200 hover:border-gray-300'
+              }`}
+            />
+            {errors.whatsapp_number ? (
+              <p className="mt-1 text-xs text-red-600">{errors.whatsapp_number}</p>
+            ) : (
+              <p className="mt-1 text-right text-[10px] text-gray-400">
+                Tanpa kode + (misal: 20... / 62...)
+              </p>
+            )}
+          </div>
+        </div>
       </div>
 
-      {submitError && (
-        <p className="sm:col-span-2 text-sm text-red-600">{submitError}</p>
-      )}
+      {/* Group 2: Atribut & Status Berkas */}
+      <div className="space-y-4 pt-1">
+        <div className="border-b border-gray-200/80 pb-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+            Atribut & Status Berkas
+          </h3>
+        </div>
 
-      <div className="sm:col-span-2">
-        <button
-          type="submit"
-          disabled={isCreating}
-          className="rounded-md bg-[#7A1E33] px-4 py-2 text-sm font-medium text-white hover:bg-[#651729] disabled:opacity-60"
-        >
-          {isCreating ? 'Menyimpan...' : 'Simpan Wisudawan'}
-        </button>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 items-start">
+          {/* 5. Atribut Wisuda */}
+          <div>
+            <Select
+              label="Atribut Wisuda"
+              value={attire}
+              onChange={(e) => setAttire(e.target.value as Attire)}
+              disabled={isCreating}
+            >
+              <option value="">Pilih Atribut</option>
+              {ATTIRES.map((a) => (
+                <option key={a} value={a}>
+                  {ATTIRE_LABELS[a]}
+                </option>
+              ))}
+            </Select>
+            {errors.attire && (
+              <p className="mt-1 text-xs text-red-600">{errors.attire}</p>
+            )}
+          </div>
+
+          {/* 6. Ukuran Baju */}
+          <div>
+            <Select
+              label="Ukuran Baju"
+              value={shirtSize}
+              onChange={(e) => setShirtSize(e.target.value as ShirtSize)}
+              disabled={isCreating}
+            >
+              <option value="">Pilih Ukuran</option>
+              {SHIRT_SIZES.map((s) => (
+                <option key={s} value={s}>
+                  {SHIRT_SIZE_LABELS[s]}
+                </option>
+              ))}
+            </Select>
+            {errors.shirt_size && (
+              <p className="mt-1 text-xs text-red-600">{errors.shirt_size}</p>
+            )}
+          </div>
+
+          {/* 7. Berkas Terverifikasi */}
+          <div>
+            <Select
+              label="Status Berkas"
+              value={verification}
+              onChange={(e) => setVerification(e.target.value as VerificationStatus)}
+              disabled={isCreating}
+            >
+              <option value="">Pilih Status</option>
+              {VERIFICATION_STATUSES.map((v) => (
+                <option key={v} value={v}>
+                  {VERIFICATION_LABELS[v]}
+                </option>
+              ))}
+            </Select>
+            {errors.verification_status && (
+              <p className="mt-1 text-xs text-red-600">{errors.verification_status}</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {submitError && <InlineAlert message={submitError} />}
+
+      <div className="flex items-center justify-end pt-3 border-t border-gray-100">
+        <Button type="submit" isLoading={isCreating} className="w-full sm:w-auto px-6 py-2 text-xs">
+          {isCreating ? 'Menyimpan...' : 'Tambah Wisudawan'}
+        </Button>
       </div>
     </form>
   );

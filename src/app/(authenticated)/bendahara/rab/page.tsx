@@ -1,19 +1,10 @@
-// src/app/(dashboard)/rab/page.tsx
-import { createClient } from '@/lib/supabase/server';
-import RABBuilder from './RabBuilder';
+import type { Metadata } from 'next';
+import { RABBuilder } from './RABBuilder';
 
-export default async function RABPage() {
-  const supabase = await createClient();
-  
-  const { data: items, error } = await supabase
-    .from('rab_items')
-    .select('*')
-    .order('created_at', { ascending: false });
+export const metadata: Metadata = {
+  title: 'RAB Builder — Wisuda Management Tools',
+};
 
-  return (
-    <RABBuilder 
-      initialItems={items || []} 
-      hasError={!!error} 
-    />
-  );
+export default function RABBuilderPage() {
+  return <RABBuilder />;
 }

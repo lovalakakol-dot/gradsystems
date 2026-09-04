@@ -1,220 +1,130 @@
-export type ShirtSize = 'large' | 'small';
-
-export const SHIRT_SIZE_LABEL: Record<ShirtSize, string> = {
-  large: 'Besar',
-  small: 'Kecil',
+export type Gender = 'male' | 'female';
+export const GENDER_LABELS: Record<Gender, string> = {
+  male: 'بنين',
+  female: 'بنات',
 };
 
-export const ALL_SHIRT_SIZES = 'Semua Ukuran' as const;
-export type ShirtSizeFilter = ShirtSize | typeof ALL_SHIRT_SIZES;
+export type ShirtSize = 'large' | 'small' | 'none';
+export const SHIRT_SIZE_LABELS: Record<ShirtSize, string> = {
+  large: 'Besar',
+  small: 'Kecil',
+  none: 'Tidak ada',
+};
+export const SHIRT_SIZES: ShirtSize[] = ['large', 'small', 'none'];
+
+export type Attire = 'full_set' | 'sash_only';
+export const ATTIRE_LABELS: Record<Attire, string> = {
+  full_set: 'Atribut lengkap',
+  sash_only: 'Selempang saja',
+};
+export const ATTIRES: Attire[] = ['full_set', 'sash_only'];
 
 export type VerificationStatus = 'done' | 'not_yet';
-
-export const VERIFICATION_STATUS_LABEL: Record<VerificationStatus, string> = {
+export const VERIFICATION_LABELS: Record<VerificationStatus, string> = {
   done: 'Sudah',
   not_yet: 'Belum',
 };
-
-export const ALL_VERIFICATION_STATUSES = 'Semua Status' as const;
-export type VerificationStatusFilter = VerificationStatus | typeof ALL_VERIFICATION_STATUSES;
-
-export const ALL_COUNTRIES = 'Semua Negara' as const;
-// A country filter value is either a country_code (ISO 3166-1 alpha-2)
-// or the "show everything" sentinel above.
-export type CountryFilter = string | typeof ALL_COUNTRIES;
+export const VERIFICATION_STATUSES: VerificationStatus[] = ['done', 'not_yet'];
 
 /**
- * Shape of a row returned from public.graduates.
+ * Mirrors graduates exactly, per the field-expansion migration
+ * (20260904000000_graduates_field_expansion.sql) on top of
+ * 20260813000000_initial_schema.sql +
+ * 20260824000000_domain_schema_refinement.sql — not a guess,
+ * transcribed from the migrations. Scoped to this feature only;
+ * does not touch src/types/database.types.ts.
  *
- * `full_name` is the original, pre-existing NOT NULL column. It is
- * intentionally not exposed as its own form field in this feature —
- * see CreateGraduateInput below.
+ * full_name (legacy, NOT NULL) and full_name_ar are both present in
+ * the real table. This feature treats full_name_ar as the sole
+ * source of truth for display/search/sort/export, and writes the
+ * same Arabic value into full_name at insert time purely to satisfy
+ * its NOT NULL constraint (see data.ts) — full_name is never read
+ * back by this feature.
  */
-export interface GraduateEntry {
+export interface GraduateRow {
   id: string;
   full_name: string;
   full_name_ar: string | null;
+  gender: Gender | null;
   country_code: string | null;
+  whatsapp_number: string | null;
+  attire: Attire | null;
   shirt_size: ShirtSize | null;
   verification_status: VerificationStatus;
-  participant_number: string | null;
-  whatsapp_number: string | null;
   created_by: string;
   updated_by: string | null;
   created_at: string;
   updated_at: string;
 }
 
-/**
- * Data required when creating a new graduate.
- *
- * full_name is required by the existing database schema (NOT NULL,
- * predates this feature) but is not a user-facing field here — the
- * mutation layer derives it from full_name_ar automatically, same
- * convention as category/payment_method in the Cashbook feature.
- */
 export interface CreateGraduateInput {
-  full_name: string;
   full_name_ar: string;
+  gender: Gender;
   country_code: string;
-  shirt_size: ShirtSize;
-  participant_number: string;
   whatsapp_number: string;
+  attire: Attire;
+  shirt_size: ShirtSize;
   verification_status: VerificationStatus;
 }
 
 /**
- * Kept for table-contract completeness (mirrors the Cashbook/RAB
- * pattern). Not currently wired to any edit UI — this feature only
- * ships create + delete per the current requirement.
- */
-export interface UpdateGraduateInput {
-  full_name?: string;
-  full_name_ar?: string | null;
-  country_code?: string | null;
-  shirt_size?: ShirtSize | null;
-  participant_number?: string | null;
-  whatsapp_number?: string | null;
-  verification_status?: VerificationStatus;
-}
-
-/**
- * Table-shape override for feature-local Supabase typing, following
- * the same pattern used by RAB and Cashbook. Relationships is
- * required by postgrest-js's GenericTable constraint even though
- * graduates has no foreign-table relationships modeled here.
+ * Explicit table-shape override for Supabase's `.from<T>()` generic
+ * escape hatch — graduates is not yet in database.types.ts, same
+ * documented mechanism already used by Cashbook/Finance.
  */
 export interface GraduateTable {
-  Row: GraduateEntry;
-  Insert: CreateGraduateInput;
-  Update: UpdateGraduateInput;
-  Relationships: [];
+  Row: GraduateRow;
+  Insert: CreateGraduateInput & { full_name: string };
 }
 
-export type SortOption = 'name_asc' | 'name_desc' | 'participant_number_asc';
+export const ALL_COUNTRIES = 'Semua Negara' as const;
+export type CountryFilter = string | typeof ALL_COUNTRIES;
 
+export const ALL_SHIRT_SIZES = 'Semua Ukuran' as const;
+export type ShirtSizeFilter = ShirtSize | typeof ALL_SHIRT_SIZES;
+
+export const ALL_VERIFICATION = 'Semua Status' as const;
+export type VerificationFilter = VerificationStatus | typeof ALL_VERIFICATION;
+
+export type SortOption = 'name_asc' | 'name_desc' | 'country_asc' | 'country_desc';
 export const SORT_LABELS: Record<SortOption, string> = {
   name_asc: 'Nama A-Z',
   name_desc: 'Nama Z-A',
-  participant_number_asc: 'No. Peserta (Awal-Akhir)',
+  country_asc: 'Negara A-Z',
+  country_desc: 'Negara Z-A',
 };
 
-export interface GraduateFiltersState {
-  search: string;
-  country: CountryFilter;
-  shirtSize: ShirtSizeFilter;
-  verificationStatus: VerificationStatusFilter;
-  sort: SortOption;
-}
+/* ===== Export ===== */
 
-export const DEFAULT_GRADUATE_FILTERS: GraduateFiltersState = {
-  search: '',
-  country: ALL_COUNTRIES,
-  shirtSize: ALL_SHIRT_SIZES,
-  verificationStatus: ALL_VERIFICATION_STATUSES,
-  sort: 'name_asc',
-};
-
-/**
- * One country's contribution to the recap. Only countries that
- * actually have at least one graduate are ever produced by
- * calculateGraduateSummary — zero-count countries are never
- * included.
- */
-export interface CountryCount {
-  countryCode: string;
-  countryNameAr: string;
-  count: number;
-}
-
-/**
- * Summary derived from the COMPLETE graduates dataset, not the
- * filtered/displayed subset — same convention as Cashbook's
- * summary, which always reflects full history regardless of the
- * table's current filters.
- */
-export interface GraduateSummary {
-  totalParticipants: number;
-  byCountry: CountryCount[];
-  totalLarge: number;
-  totalSmall: number;
-}
-
-/**
- * Export/preview columns.
- */
 export const EXPORT_COLUMNS = [
-  'participant_number',
+  'no',
   'full_name_ar',
+  'gender',
   'country',
+  'whatsapp',
+  'attire',
   'shirt_size',
-  'whatsapp_number',
   'verification_status',
 ] as const;
-
 export type ExportColumn = (typeof EXPORT_COLUMNS)[number];
 
 export const EXPORT_COLUMN_LABELS: Record<ExportColumn, string> = {
-  participant_number: 'No. Peserta',
+  no: 'No.',
   full_name_ar: 'Nama Lengkap',
+  gender: 'Jenis Kelamin',
   country: 'Asal Negara',
+  whatsapp: 'Nomor WhatsApp',
+  attire: 'Atribut Wisuda',
   shirt_size: 'Ukuran Baju',
-  whatsapp_number: 'No. WhatsApp',
-  verification_status: 'Status Verifikasi',
+  verification_status: 'Status Berkas',
 };
 
-/**
- * A single row shared verbatim by the export preview table and the
- * XLSX writer (see utils/exportGraduates.ts) — keys are the human
- * column labels themselves, in selected-column order, so both the
- * on-screen preview and the workbook header row are guaranteed to
- * match.
- */
-export type GraduateExportRow = Record<string, string | number>;
+export type WhatsappExportFormat = 'plain' | 'wa_me';
 
-export interface GraduateFormErrors {
-  full_name_ar?: string;
-  country_code?: string;
-  shirt_size?: string;
-  participant_number?: string;
-  whatsapp_number?: string;
-}
-
-/**
- * Field order here matches the form's visual order: No. Peserta,
- * Nama Lengkap (Arab), Asal Negara, Ukuran Baju, No. WhatsApp,
- * Berkas Terverifikasi.
- */
-export interface GraduateFormValues {
-  participant_number: string;
-  full_name_ar: string;
-  country_code: string;
-  shirt_size: ShirtSize | '';
-  whatsapp_number: string;
-  verification_status: VerificationStatus;
-}
-
-export const DEFAULT_GRADUATE_FORM_VALUES: GraduateFormValues = {
-  participant_number: '',
-  full_name_ar: '',
-  country_code: '',
-  shirt_size: '',
-  whatsapp_number: '',
-  verification_status: 'not_yet',
-};
-
-/**
- * Builds a wa.me click-to-chat link from a raw WhatsApp number.
- *
- * This only strips formatting characters (spaces, dashes,
- * parentheses, a leading +) — it does NOT guess or rewrite a
- * country code from a bare leading 0, since graduates come from
- * many different countries and a wrong guess would silently
- * produce a link to the wrong person. The form expects the number
- * already in international format (e.g. 6281234567890) and hints
- * that at entry time.
- */
-export function buildWhatsAppLink(rawNumber: string): string {
-  const digits = rawNumber.replace(/[^\d]/g, '');
-  return `https://wa.me/${digits}`;
-}
+/** One export/preview row — same shape feeds both the preview table
+ * and the XLSX writer, so preview is guaranteed to equal the file
+ * (section 33). */
+export type ExportCellValue = string | number;
+/** Partial because a row only ever carries the currently-selected
+ * columns, never the full ExportColumn set. */
+export type ExportRow = Partial<Record<ExportColumn, ExportCellValue>>;

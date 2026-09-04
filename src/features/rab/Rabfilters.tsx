@@ -1,50 +1,58 @@
 'use client';
 
-import { Download } from 'lucide-react';
-import Select from '@/shared/components/Select';
-import Button from '@/shared/components/Button';
-import { ALL_DIVISIONS, DIVISIONS, SORT_LABELS, type DivisionFilter, type SortOption } from './types';
+import { Search } from 'lucide-react';
+import { DIVISIONS, SORT_LABELS } from './types';
+import type { RABDivisionFilter, RABFiltersState, RABSortOption } from './types';
 
-export default function RABFilters({
-  divisionFilter,
-  onDivisionFilterChange,
-  sort,
-  onSortChange,
-  onExportClick,
-}: {
-  divisionFilter: DivisionFilter;
-  onDivisionFilterChange: (value: DivisionFilter) => void;
-  sort: SortOption;
-  onSortChange: (value: SortOption) => void;
-  onExportClick: () => void;
-}) {
+interface RABFiltersProps {
+  filters: RABFiltersState;
+  onChange: (filters: RABFiltersState) => void;
+}
+
+const DIVISION_OPTIONS: { value: RABDivisionFilter; label: string }[] = [
+  { value: 'all', label: 'Semua Divisi' },
+  ...DIVISIONS.map((division) => ({ value: division, label: division })),
+];
+
+const SORT_OPTIONS = Object.entries(SORT_LABELS) as [RABSortOption, string][];
+
+export function RABFilters({ filters, onChange }: RABFiltersProps) {
   return (
-    <div className="space-y-3">
-      <Select
-        label="Filter Divisi"
-        value={divisionFilter}
-        onChange={(e) => onDivisionFilterChange(e.target.value as DivisionFilter)}
+    <div className="flex flex-col gap-3 rounded-xl border border-white/40 bg-white/60 p-4 shadow-lg shadow-black/5 backdrop-blur-xl sm:flex-row sm:items-center">
+      <div className="relative flex-1">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+        <input
+          type="text"
+          value={filters.search}
+          onChange={(event) => onChange({ ...filters, search: event.target.value })}
+          placeholder="Cari nama item..."
+          className="w-full rounded-lg border border-white/60 bg-white/50 py-2 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 backdrop-blur transition-colors duration-200 focus:border-[#7A1E33]/50 focus:outline-none focus:ring-2 focus:ring-[#7A1E33]/40"
+        />
+      </div>
+
+      <select
+        value={filters.division}
+        onChange={(event) => onChange({ ...filters, division: event.target.value as RABDivisionFilter })}
+        className="rounded-lg border border-white/60 bg-white/50 px-3 py-2 text-sm text-slate-900 backdrop-blur transition-colors duration-200 focus:border-[#7A1E33]/50 focus:outline-none focus:ring-2 focus:ring-[#7A1E33]/40 sm:w-56"
       >
-        <option value={ALL_DIVISIONS}>{ALL_DIVISIONS}</option>
-        {DIVISIONS.map((d) => (
-          <option key={d} value={d}>
-            {d}
+        {DIVISION_OPTIONS.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
           </option>
         ))}
-      </Select>
+      </select>
 
-      <Select label="Urutkan" value={sort} onChange={(e) => onSortChange(e.target.value as SortOption)}>
-        {(Object.keys(SORT_LABELS) as SortOption[]).map((key) => (
-          <option key={key} value={key}>
-            {SORT_LABELS[key]}
+      <select
+        value={filters.sort}
+        onChange={(event) => onChange({ ...filters, sort: event.target.value as RABSortOption })}
+        className="rounded-lg border border-white/60 bg-white/50 px-3 py-2 text-sm text-slate-900 backdrop-blur transition-colors duration-200 focus:border-[#7A1E33]/50 focus:outline-none focus:ring-2 focus:ring-[#7A1E33]/40 sm:w-56"
+      >
+        {SORT_OPTIONS.map(([value, label]) => (
+          <option key={value} value={value}>
+            {label}
           </option>
         ))}
-      </Select>
-
-      <Button variant="secondary" onClick={onExportClick} className="w-full">
-        <Download className="h-4 w-4" />
-        Export to Spreadsheet
-      </Button>
+      </select>
     </div>
   );
 }

@@ -1,7 +1,10 @@
-import { getCashbookEntries } from '@/features/cashbook/Getcashbookentries';
-import Cashbook from './cashbook';
+import type { Metadata } from 'next';
+import { Cashbook } from './Cashbook';
 
-export default async function CashbookPage() {
-  const { entries, hasError } = await getCashbookEntries();
-  return <Cashbook initialEntries={entries} hasError={hasError} />;
+export const metadata: Metadata = {
+  title: 'Buku Kas Digital — Wisuda Management Tools',
+};
+
+export default function CashbookPage() {
+  return <Cashbook />;
 }

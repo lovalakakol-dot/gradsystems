@@ -1,64 +1,53 @@
-import Card from '@/shared/components/Card';
-import type { CashbookEntryWithBalance } from './calculateRunningBalance';
+import { formatCashAmount } from './types';
 
-function formatNumber(value: number): string {
-  return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(value);
+interface CashbookSummaryProps {
+  egpIncome: number;
+  egpExpense: number;
+  egpBalance: number;
+  idrIncome: number;
+  idrExpense: number;
+  idrBalance: number;
 }
 
-function sumBy(
-  entries: CashbookEntryWithBalance[],
-  currency: 'EGP' | 'IDR',
-  type: 'income' | 'expense'
-): number {
-  return entries
-    .filter((e) => e.currency === currency && e.type === type)
-    .reduce((sum, e) => sum + e.amount, 0);
-}
-
-/**
- * Deliberately computed from the FULL (unfiltered) entries — a
- * committee-wide financial overview that stays stable regardless of
- * whatever the user is currently filtering in the table below,
- * consistent with how running balance itself is never affected by
- * display-only filters.
- */
-export default function CashbookSummary({ entries }: { entries: CashbookEntryWithBalance[] }) {
-  const incomeEgp = sumBy(entries, 'EGP', 'income');
-  const expenseEgp = sumBy(entries, 'EGP', 'expense');
-  const saldoEgp = incomeEgp - expenseEgp;
-
-  const incomeIdr = sumBy(entries, 'IDR', 'income');
-  const expenseIdr = sumBy(entries, 'IDR', 'expense');
-  const saldoIdr = incomeIdr - expenseIdr;
-
+export function CashbookSummary({
+  egpIncome,
+  egpExpense,
+  egpBalance,
+  idrIncome,
+  idrExpense,
+  idrBalance,
+}: CashbookSummaryProps) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <div className="space-y-3">
-        <h3 className="text-xs font-medium uppercase text-gray-500">EGP</h3>
-        <div className="grid grid-cols-3 gap-3">
-          <Card title="Pemasukan">
-            <p className="text-lg font-semibold text-gray-900">{formatNumber(incomeEgp)}</p>
-          </Card>
-          <Card title="Pengeluaran">
-            <p className="text-lg font-semibold text-gray-900">{formatNumber(expenseEgp)}</p>
-          </Card>
-          <Card title="Saldo">
-            <p className="text-lg font-semibold text-gray-900">{formatNumber(saldoEgp)}</p>
-          </Card>
+      <div className="rounded-xl border border-white/40 bg-white/60 p-5 shadow-lg shadow-black/5 backdrop-blur-xl">
+        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Ringkasan EGP</p>
+        <div className="mt-3 flex items-center justify-between text-sm">
+          <span className="text-slate-500">Total Pemasukan</span>
+          <span className="font-medium text-slate-900">{formatCashAmount('EGP', egpIncome)}</span>
+        </div>
+        <div className="mt-1.5 flex items-center justify-between text-sm">
+          <span className="text-slate-500">Total Pengeluaran</span>
+          <span className="font-medium text-slate-900">{formatCashAmount('EGP', egpExpense)}</span>
+        </div>
+        <div className="mt-3 border-t border-slate-200/60 pt-3">
+          <p className="text-xs font-medium uppercase tracking-wide text-[#7A1E33]">Saldo EGP</p>
+          <p className="mt-1 text-2xl font-semibold text-slate-900">{formatCashAmount('EGP', egpBalance)}</p>
         </div>
       </div>
-      <div className="space-y-3">
-        <h3 className="text-xs font-medium uppercase text-gray-500">IDR</h3>
-        <div className="grid grid-cols-3 gap-3">
-          <Card title="Pemasukan">
-            <p className="text-lg font-semibold text-gray-900">{formatNumber(incomeIdr)}</p>
-          </Card>
-          <Card title="Pengeluaran">
-            <p className="text-lg font-semibold text-gray-900">{formatNumber(expenseIdr)}</p>
-          </Card>
-          <Card title="Saldo">
-            <p className="text-lg font-semibold text-gray-900">{formatNumber(saldoIdr)}</p>
-          </Card>
+
+      <div className="rounded-xl border border-white/40 bg-white/60 p-5 shadow-lg shadow-black/5 backdrop-blur-xl">
+        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Ringkasan IDR</p>
+        <div className="mt-3 flex items-center justify-between text-sm">
+          <span className="text-slate-500">Total Pemasukan</span>
+          <span className="font-medium text-slate-900">{formatCashAmount('IDR', idrIncome)}</span>
+        </div>
+        <div className="mt-1.5 flex items-center justify-between text-sm">
+          <span className="text-slate-500">Total Pengeluaran</span>
+          <span className="font-medium text-slate-900">{formatCashAmount('IDR', idrExpense)}</span>
+        </div>
+        <div className="mt-3 border-t border-slate-200/60 pt-3">
+          <p className="text-xs font-medium uppercase tracking-wide text-[#7A1E33]">Saldo IDR</p>
+          <p className="mt-1 text-2xl font-semibold text-slate-900">{formatCashAmount('IDR', idrBalance)}</p>
         </div>
       </div>
     </div>
